@@ -92,10 +92,17 @@
       var lrc=lr.getBoundingClientRect(), eh=endHandle.getBoundingClientRect();
       var expectedRange=d.createRange();expectedRange.selectNodeContents(paper);expectedRange.setEnd(laterNode,Math.min(1,laterNode.nodeValue.length));
       var expectedOffset=expectedRange.toString().length;
+      var nativeCreateRange=d.createRange.bind(d), dragRangeCreates=0;
+      d.createRange=function(){dragRangeCreates++;return nativeCreateRange();};
       fire('touchstart',eh.left+eh.width/2,eh.top+eh.height/2,endHandle);
-      var handleMove=fire('touchmove',lrc.right,lrc.top+lrc.height/2,endHandle);
-      fire('touchend',lrc.right,lrc.top+lrc.height/2,endHandle);await sleep(40);
+      var handleMove;
+      for(var dragStep=0;dragStep<16;dragStep++){
+        handleMove=fire('touchmove',dragStep%2?lrc.left:lrc.right,lrc.top+lrc.height/2,d);
+      }
+      fire('touchend',lrc.right,lrc.top+lrc.height/2,d);await sleep(40);
+      d.createRange=nativeCreateRange;
       ok('拖动右手柄时由应用接管手势', handleMove.defaultPrevented);
+      ok('连续拖动不重复扫描全文（16 次更新）', dragRangeCreates<=20, dragRangeCreates+' 个 Range');
       var layerAfter=d.getElementById('selLayer');
       ok('拖动后左右手柄和高亮仍然存在', d.querySelectorAll('#selLayer .sel-handle').length===2 && d.querySelectorAll('#selLayer .sel-hl').length>0,
         layerAfter ? layerAfter.getAttribute('data-range-start')+','+layerAfter.getAttribute('data-range-end')+' expected='+expectedOffset : 'no layer');
