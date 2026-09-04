@@ -60,9 +60,52 @@
     ok('iPad API 缺失时普通正文静止长按有高亮', d.querySelectorAll('#selLayer .sel-hl').length > 0);
     ok('普通正文静止长按显示挖空按钮', !d.getElementById('selPop').hidden && !d.getElementById('selAdd').hidden);
     ok('长按未创建浏览器原生选区', !w.getSelection().rangeCount || w.getSelection().isCollapsed);
+    var handles=d.querySelectorAll('#selLayer .sel-handle');
+    ok('长按后显示左右两个范围手柄', handles.length===2);
+    var endHandle=d.querySelector('#selLayer .sel-handle.end');
+    var laterNode=null, laterWalk=d.createTreeWalker(paper,w.NodeFilter.SHOW_TEXT,null), ln;
+    while((ln=laterWalk.nextNode())) {
+      if(ln.nodeValue && ln.nodeValue.trim() && ln!==ordinary && !ln.parentElement.closest('#selLayer')){
+        var probe=d.createRange();probe.setStart(ln,0);probe.setEnd(ln,Math.min(1,ln.nodeValue.length));
+        var probeRect=probe.getBoundingClientRect();if(probeRect.width||probeRect.height)laterNode=ln;
+      }
+    }
+    if(endHandle && laterNode){
+      var lr=d.createRange();lr.setStart(laterNode,0);lr.setEnd(laterNode,Math.min(1,laterNode.nodeValue.length));
+      var lrc=lr.getBoundingClientRect(), eh=endHandle.getBoundingClientRect();
+      var expectedRange=d.createRange();expectedRange.selectNodeContents(paper);expectedRange.setEnd(laterNode,Math.min(1,laterNode.nodeValue.length));
+      var expectedOffset=expectedRange.toString().length;
+      fire('touchstart',eh.left+eh.width/2,eh.top+eh.height/2,endHandle);
+      var handleMove=fire('touchmove',lrc.right,lrc.top+lrc.height/2,endHandle);
+      fire('touchend',lrc.right,lrc.top+lrc.height/2,endHandle);await sleep(40);
+      ok('拖动右手柄时由应用接管手势', handleMove.defaultPrevented);
+      var layerAfter=d.getElementById('selLayer');
+      ok('拖动后左右手柄和高亮仍然存在', d.querySelectorAll('#selLayer .sel-handle').length===2 && d.querySelectorAll('#selLayer .sel-hl').length>0,
+        layerAfter ? layerAfter.getAttribute('data-range-start')+','+layerAfter.getAttribute('data-range-end')+' expected='+expectedOffset : 'no layer');
+      var startHandle=d.querySelector('#selLayer .sel-handle.start'), shrinkNode=null;
+      var shrinkWalk=d.createTreeWalker(paper,w.NodeFilter.SHOW_TEXT,null), sn;
+      while((sn=shrinkWalk.nextNode())){
+        if(!sn.nodeValue||!sn.nodeValue.trim()||sn.parentElement.closest('#selLayer'))continue;
+        var er=d.createRange();er.selectNodeContents(paper);er.setEnd(sn,Math.min(1,sn.nodeValue.length));
+        var eo=er.toString().length;if(eo>2&&eo<expectedOffset-1){shrinkNode=sn;break;}
+      }
+      if(startHandle&&shrinkNode){
+        var shr=d.createRange();shr.setStart(shrinkNode,0);shr.setEnd(shrinkNode,Math.min(1,shrinkNode.nodeValue.length));
+        var shrc=shr.getBoundingClientRect(), sh=startHandle.getBoundingClientRect();
+        fire('touchstart',sh.left+sh.width/2,sh.top+sh.height/2,startHandle);
+        var shrinkMove=fire('touchmove',shrc.right,shrc.top+shrc.height/2,startHandle);
+        fire('touchend',shrc.right,shrc.top+shrc.height/2,startHandle);await sleep(40);
+        var shrunkLayer=d.getElementById('selLayer'), shrunkStart=+(shrunkLayer&&shrunkLayer.getAttribute('data-range-start'));
+        ok('拖动左手柄时由应用接管手势', shrinkMove.defaultPrevented);
+        ok('左手柄可向右缩短挖空范围', shrunkStart>0 && shrunkStart<+(shrunkLayer&&shrunkLayer.getAttribute('data-range-end')),
+          shrunkLayer ? shrunkLayer.getAttribute('data-range-start')+','+shrunkLayer.getAttribute('data-range-end') : 'no layer');
+      }
+    }
     var beforeAdd = w.RT.app.state.customRanges.length;
     d.getElementById('selAdd').click(); await sleep(100);
     ok('长按后点击加号完成挖空', w.RT.app.state.customRanges.length === beforeAdd + 1);
+    var adjusted=w.RT.app.state.customRanges[w.RT.app.state.customRanges.length-1];
+    ok('调整后的范围按新边界挖空', !!adjusted && adjusted[1]-adjusted[0]>1, adjusted ? adjusted.join(',') : 'none');
 
     await sleep(850);
     paper = d.getElementById('paper');
