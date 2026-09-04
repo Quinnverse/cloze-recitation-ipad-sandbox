@@ -12,7 +12,7 @@
   w.addEventListener('unhandledrejection',function(e){runtimeErrors.push(String(e.reason||'rejection'));});
   await w.RT.store.ready();
   w.RT.app.go('new');
-  d.getElementById('newText').value = '学习需要持续练习，普通内容也应该能够通过长按进行挖空。';
+  d.getElementById('newText').value = '学习需要持续练习，普通内容也应该能够通过长按进行挖空。 alpha beta';
   d.getElementById('btnCreate').click();
   await sleep(350);
   var paper = d.getElementById('paper');
@@ -134,6 +134,11 @@
       var expectedText=(w.RT.app.state.cur.text||'').slice(adjusted[0],adjusted[1]);
       var blankText=w.RT.app.state.toks.filter(function(tok){return tok._blank && tok.p>=adjusted[0] && tok.p+tok.s.length<=adjusted[1];}).map(function(tok){return tok.s;}).join('');
       ok('确认挖空后的蓝色词严格对应调整选区', blankText===expectedText, 'expected='+expectedText+' actual='+blankText);
+      var blueBlocks=[].slice.call(d.querySelectorAll('#paper .tk.on.manual:not(.forced)'));
+      ok('跨空格的连续手选只渲染为一个蓝色块', blueBlocks.length===1,
+        blueBlocks.length+' 块，文本='+blueBlocks.map(function(el){return el.textContent;}).join(' | '));
+      ok('连续蓝色块与调整后的选区逐字一致', !!blueBlocks[0] && blueBlocks[0].textContent===expectedText,
+        'range='+adjusted.join(',')+' expected='+expectedText+' actual='+(blueBlocks[0]&&blueBlocks[0].textContent)+' toks='+w.RT.app.state.toks.filter(function(tok){return tok._blank;}).map(function(tok){return tok.p+':'+tok.s;}).join('/'));
     }
 
     await sleep(850);
