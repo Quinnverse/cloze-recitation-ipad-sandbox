@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#6366F1">
+<meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="pragma" content="no-cache">
+<meta http-equiv="expires" content="0">
+<meta name="description" content="挖空背诵工具：导入资料自动挖空，展示模式直接看答案，错题强制重现、按句归并集中攻克。纯前端，数据只存你自己的浏览器。">
+<title>挖空背诵 · 导入即背，错题必挖</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><text y='20' font-size='20'>📖</text></svg>">
+<link rel="stylesheet" href="css/app.20260904c.css">
+</head>
+<body>
+
+<!-- ============ 顶部栏 ============ -->
+<header class="appbar">
+  <div class="appbar-in">
+    <a class="brand" href="#" data-go="sessions">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H5.5A1.5 1.5 0 0 1 4 15.5z"/>
+          <path d="M20 5.5A1.5 1.5 0 0 0 18.5 4H14a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h4.5A1.5 1.5 0 0 0 20 15.5z"/>
+        </svg>
+      </span>
+      <span class="brand-txt">挖空背诵</span>
+    </a>
+
+    <nav class="nav" id="navTop" aria-label="主导航">
+      <button class="nav-i" data-go="sessions">我的会话</button>
+      <button class="nav-i" data-go="stats">每日成果</button>
+      <button class="nav-i" data-go="wrong">错题库</button>
+    </nav>
+
+    <button class="btn btn-cta btn-sm" data-go="new">＋ 新建会话</button>
+  </div>
+</header>
+
+<main class="wrap" id="main">
+
+  <!-- ============ 视图：会话列表 ============ -->
+  <section class="view" id="v-sessions">
+    <div class="hero">
+      <h1 class="h1">导入资料 → 自动挖空 → 填空自测</h1>
+      <p class="sub">核心知识点自动挖空，展示模式直接看答案；<b>错过的空强制重现</b>（黄底，浏览满 5 次解除），错题库按句归并、按错误次数排序，集中攻克。数据只存在你自己的浏览器里。</p>
+      <div class="hero-act">
+        <button class="btn btn-cta" data-go="new">开始新会话</button>
+        <button class="btn btn-ghost" id="btnDemo">载入示例文本</button>
+      </div>
+      <div class="kpis" id="heroKpis"></div>
+    </div>
+
+    <div class="sec-head">
+      <h2 class="h2">我的会话</h2>
+      <span class="muted sm" id="sessCount"></span>
+    </div>
+    <div id="sessList" class="grid"></div>
+  </section>
+
+  <!-- ============ 视图：新建会话 ============ -->
+  <section class="view" id="v-new" hidden>
+    <div class="sec-head">
+      <h2 class="h2">新建会话</h2>
+      <button class="btn btn-ghost btn-sm" data-go="sessions">返回</button>
+    </div>
+
+    <div class="card">
+      <label class="lb" for="newTitle">会话名称</label>
+      <input class="in" id="newTitle" placeholder="例如：教育学第三章 / 考研政治马原">
+
+      <label class="lb" for="drop">导入文件（.docx / .pdf / .txt）</label>
+      <div class="drop" id="drop" tabindex="0" role="button" aria-label="选择或拖入文件">
+        <div class="drop-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
+          </svg>
+        </div>
+        <div><b>点击选择</b> 或把文件拖到这里</div>
+        <div class="muted sm">支持 Word(.docx)、PDF(.pdf)、纯文本(.txt)；解析全部在本机完成，文件不会上传</div>
+        <input type="file" id="file" accept=".docx,.pdf,.txt,text/plain" hidden>
+      </div>
+      <div id="parseTip" class="tip" hidden></div>
+
+      <label class="lb" for="newText">或直接打字 / 粘贴内容</label>
+      <textarea class="in ta" id="newText" rows="10" placeholder="把要背的内容粘进来……"></textarea>
+      <div class="row-between">
+        <span class="muted sm" id="charCount">0 字</span>
+        <div class="btn-row">
+          <button class="btn btn-ghost btn-sm" id="btnClearText">清空</button>
+          <button class="btn btn-cta" id="btnCreate">生成挖空并开始</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 视图：练习 ============ -->
+  <section class="view" id="v-practice" hidden>
+    <div class="sec-head">
+      <div class="ttl-wrap">
+        <button class="btn btn-ghost btn-sm" data-go="sessions">← 会话</button>
+        <h2 class="h2" id="pTitle">—</h2>
+      </div>
+      <span class="muted sm" id="pMeta"></span>
+    </div>
+
+    <div class="card toolbar">
+      <div class="tb-grp">
+        <span class="lb-inline">挖空方式</span>
+        <div class="seg" id="densitySeg" role="group" aria-label="自动挖数量">
+          <button data-d="low">自动少</button><button data-d="mid" class="on">自动中</button><button data-d="high">自动多</button>
+        </div>
+      </div>
+      <div class="tb-grp grow">
+        <button class="btn btn-ghost btn-sm" id="btnRecloze" title="按当前密度重新自动挖空；历史错点必定保留">重新按密度挖（错点必留）</button>
+        <button class="btn btn-ghost btn-sm" id="btnClearBlank">清空所有空</button>
+      </div>
+      <div class="tb-grp">
+        <button class="btn btn-cta" id="btnPractice">练习填空</button>
+        <button class="btn btn-primary" id="btnStart">展示填空</button>
+        <button class="btn btn-cta" id="btnSubmit" hidden>提交批改</button>
+        <button class="btn btn-primary" id="btnRetry" hidden>返回编辑</button>
+      </div>
+    </div>
+
+    <div class="hint" id="pHint">
+      <b>三种挖空方式（任选）：</b>① 上方「自动少/中/多」一键按重点词挖；② <span style="background:#DBEAFE;color:#1D4ED8;padding:0 4px;border-radius:5px">浅蓝底</span>是已挖的词，点一下可取消；<span style="background:#FEF3C7;color:#B45309;padding:0 4px;border-radius:5px">黄底</span>是错题强制重现的空（<b>练习中答对</b>满 5 次自动解除）；③ <span class="suggest-tip">虚线下划线</span>点一下即挖；触屏可<b>静止长按普通正文</b> → 点「＋挖空」。调好空后任选：<b>练习填空</b>（作答+批改，错空进错题库）或<b>展示填空</b>（直接看答案）。
+    </div>
+
+    <div class="card paper">
+      <div id="paper" class="txt"></div>
+    </div>
+
+    <!-- 拖选挖空浮层 -->
+    <div id="selPop" class="sel-pop" hidden>
+      <button class="sel-add" id="selAdd">＋ 挖空</button>
+      <button class="sel-remove" id="selRemove" hidden>－ 取消挖空</button>
+    </div>
+
+    <!-- 批改结果面板（练习模式提交后） -->
+    <div id="resultBox" hidden></div>
+  </section>
+
+  <!-- ============ 视图：每日成果 ============ -->
+  <section class="view" id="v-stats" hidden>
+    <div class="sec-head">
+      <h2 class="h2">每日成果</h2>
+      <span class="muted sm" id="sMeta"></span>
+    </div>
+    <div id="statsBox"></div>
+  </section>
+
+  <!-- ============ 视图：错题库 ============ -->
+  <section class="view" id="v-wrong" hidden>
+    <div class="sec-head">
+      <h2 class="h2">错题库</h2>
+      <span class="muted sm" id="wMeta"></span>
+    </div>
+    <div id="wrongBox"></div>
+  </section>
+
+  <footer class="foot">
+    <span>挖空背诵 · 纯前端工具，数据保存在本机浏览器（IndexedDB），不上传任何内容</span>
+    <div class="foot-act">
+      <button class="btn btn-ghost btn-sm" id="btnExport">导出备份</button>
+      <button class="btn btn-ghost btn-sm" id="btnImport">导入备份</button>
+      <input type="file" id="importFile" accept="application/json,.json" hidden>
+    </div>
+  </footer>
+</main>
+
+<!-- ============ 移动端底部导航 ============ -->
+<nav class="tabbar" id="navBottom" aria-label="底部导航">
+  <button class="tab" data-go="sessions">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2.5"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+    <span>会话</span>
+  </button>
+  <button class="tab" data-go="stats">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+    <span>成果</span>
+  </button>
+  <button class="tab" data-go="wrong">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>
+    <span>错题</span>
+  </button>
+</nav>
+
+<div id="toast" class="toast" hidden></div>
+
+<!-- 确认弹窗 -->
+<div class="modal" id="modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true">
+    <h3 id="mkTitle">确认</h3>
+    <p id="mkBody" class="muted"></p>
+    <div class="btn-row end">
+      <button class="btn btn-ghost btn-sm" id="mkNo">取消</button>
+      <button class="btn btn-danger btn-sm" id="mkYes">确定</button>
+    </div>
+  </div>
+</div>
+
+<!-- 版本号 cache-buster：每次发布改 v= 的值，强制浏览器放弃旧缓存的 JS/CSS，
+     避免"刷新还是点不动"= 一直加载被缓存的旧版脚本。 -->
+<script src="js/util.20260904c.js"></script>
+<script src="js/store.20260904c.js"></script>
+<script src="js/cloze.20260904c.js"></script>
+<script src="js/importer.20260904c.js"></script>
+<script src="js/ui.20260904c.js"></script>
+<script src="js/main.20260904c.js"></script>
+</body>
+</html>

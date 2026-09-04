@@ -1,0 +1,117 @@
+<!doctype html><meta charset="utf-8"><title>RUNNING</title>
+<pre id="log"></pre><iframe id="app" src="index.html" style="width:820px;height:1180px;border:0"></iframe>
+<script>
+(async function () {
+  var out = [], frame = document.getElementById('app');
+  function ok(name, value, detail) { out.push((value ? 'PASS | ' : 'FAIL | ') + name + (detail ? ' :: ' + detail : '')); }
+  function sleep(ms) { return new Promise(function (resolve) { setTimeout(resolve, ms); }); }
+  await new Promise(function (resolve) { frame.onload = resolve; });
+  var w = frame.contentWindow, d = frame.contentDocument;
+  var runtimeErrors=[];
+  w.addEventListener('error',function(e){runtimeErrors.push(e.message||'error');});
+  w.addEventListener('unhandledrejection',function(e){runtimeErrors.push(String(e.reason||'rejection'));});
+  await w.RT.store.ready();
+  w.RT.app.go('new');
+  d.getElementById('newText').value = '学习需要持续练习，普通内容也应该能够通过长按进行挖空。';
+  d.getElementById('btnCreate').click();
+  await sleep(350);
+  var paper = d.getElementById('paper');
+  ok('页面进入设计状态', paper && paper.classList.contains('mode-design'));
+
+  function fire(type, x, y, target) {
+    var touch = new w.Touch({identifier:1,target:target,clientX:x,clientY:y,pageX:x,pageY:y});
+    var ev = new w.TouchEvent(type,{bubbles:true,cancelable:true,touches:type==='touchend'?[]:[touch],targetTouches:type==='touchend'?[]:[touch],changedTouches:[touch]});
+    target.dispatchEvent(ev); return ev;
+  }
+
+  var suggest = paper.querySelector('.tk.suggest');
+  ok('存在虚线建议词', !!suggest);
+  if (suggest) {
+    var sr=suggest.getBoundingClientRect();
+    fire('touchstart',sr.left+2,sr.top+2,suggest); await sleep(420); fire('touchend',sr.left+2,sr.top+2,suggest); await sleep(20);
+    ok('虚线词长按不会打开多余浮层', d.getElementById('selPop').hidden);
+    var beforeSuggest = w.RT.app.state.blanks.length;
+    suggest.click(); await sleep(80);
+    ok('虚线词单击一次挖空', w.RT.app.state.blanks.length === beforeSuggest + 1);
+  }
+  var blue = paper.querySelector('.tk.on:not(.forced)');
+  ok('存在可取消蓝色词块', !!blue);
+  if (blue) {
+    var brc=blue.getBoundingClientRect();
+    fire('touchstart',brc.left+2,brc.top+2,blue); await sleep(420); fire('touchend',brc.left+2,brc.top+2,blue); await sleep(20);
+    ok('蓝色词块长按不会打开多余浮层', d.getElementById('selPop').hidden);
+    var beforeBlue = w.RT.app.state.blanks.length;
+    blue.click(); await sleep(80);
+    ok('蓝色词块单击一次取消', w.RT.app.state.blanks.length === beforeBlue - 1);
+  }
+
+  paper = d.getElementById('paper');
+  var ordinary = null, walker = d.createTreeWalker(paper, w.NodeFilter.SHOW_TEXT, null), node;
+  while ((node = walker.nextNode())) {
+    if (node.parentElement === paper && node.nodeValue.trim()) { ordinary = node; break; }
+  }
+  ok('存在普通正文文本', !!ordinary);
+  if (ordinary) {
+    var range = d.createRange(); range.setStart(ordinary,0); range.setEnd(ordinary,1);
+    var rect = range.getBoundingClientRect(), x=rect.left+rect.width/2, y=rect.top+rect.height/2;
+    try { Object.defineProperty(d,'caretRangeFromPoint',{value:undefined,configurable:true}); } catch (_) {}
+    try { Object.defineProperty(d,'caretPositionFromPoint',{value:undefined,configurable:true}); } catch (_) {}
+    fire('touchstart',x,y,paper); await sleep(420); fire('touchend',x,y,paper); await sleep(40);
+    ok('iPad API 缺失时普通正文静止长按有高亮', d.querySelectorAll('#selLayer .sel-hl').length > 0);
+    ok('普通正文静止长按显示挖空按钮', !d.getElementById('selPop').hidden && !d.getElementById('selAdd').hidden);
+    ok('长按未创建浏览器原生选区', !w.getSelection().rangeCount || w.getSelection().isCollapsed);
+    var beforeAdd = w.RT.app.state.customRanges.length;
+    d.getElementById('selAdd').click(); await sleep(100);
+    ok('长按后点击加号完成挖空', w.RT.app.state.customRanges.length === beforeAdd + 1);
+
+    await sleep(850);
+    paper = d.getElementById('paper');
+    var direct = null, walk2 = d.createTreeWalker(paper,w.NodeFilter.SHOW_TEXT,null);
+    while ((node=walk2.nextNode())) { if(node.parentElement===paper && node.nodeValue.trim()){ direct=node; break; } }
+    if (direct) {
+      var r2=d.createRange(); r2.setStart(direct,0); r2.setEnd(direct,1); var q=r2.getBoundingClientRect();
+      var h1=fire('touchstart',q.left+2,q.top+2,paper); var hm=fire('touchmove',q.left+52,q.top+2,paper); fire('touchend',q.left+52,q.top+2,paper); await sleep(30);
+      ok('横向移动不触发拖选', d.getElementById('selPop').hidden && !d.querySelector('#selLayer .sel-hl'));
+      ok('横向移动未被脚本锁死', !hm.defaultPrevented);
+      var v1=fire('touchstart',q.left+2,q.top+2,paper); var vm=fire('touchmove',q.left+2,q.top+62,paper); fire('touchend',q.left+2,q.top+62,paper); await sleep(30);
+      ok('纵向滑动不触发长按', d.getElementById('selPop').hidden);
+      ok('纵向滑动未被 preventDefault', !vm.defaultPrevented);
+    }
+  }
+
+  var target = paper.querySelector('.tk') || paper;
+  var ss = new w.Event('selectstart',{bubbles:true,cancelable:true}); target.dispatchEvent(ss);
+  var cm = new w.MouseEvent('contextmenu',{bubbles:true,cancelable:true}); target.dispatchEvent(cm);
+  ok('触屏正文阻止原生选区', ss.defaultPrevented);
+  ok('触屏正文阻止复制翻译菜单', cm.defaultPrevented);
+
+  paper = d.getElementById('paper');
+  var cancelTarget = paper;
+  var cancelTouch = new w.Touch({identifier:2,target:cancelTarget,clientX:10,clientY:10,pageX:10,pageY:10});
+  cancelTarget.dispatchEvent(new w.TouchEvent('touchstart',{bubbles:true,cancelable:true,touches:[cancelTouch],targetTouches:[cancelTouch],changedTouches:[cancelTouch]}));
+  cancelTarget.dispatchEvent(new w.TouchEvent('touchcancel',{bubbles:true,cancelable:true,touches:[],targetTouches:[],changedTouches:[cancelTouch]}));
+  await sleep(420);
+  ok('touchcancel 后不会延迟弹出幽灵浮层', d.getElementById('selPop').hidden && !d.querySelector('#selLayer .sel-hl'));
+
+  ok('移动端页面不再显示多余模式开关', !d.getElementById('btnTouchSel'));
+  d.dispatchEvent(new w.MouseEvent('mousemove',{bubbles:true}));
+  paper = d.getElementById('paper');
+  var deskNode = null, deskWalk = d.createTreeWalker(paper,w.NodeFilter.SHOW_TEXT,null);
+  while ((node=deskWalk.nextNode())) { if(node.parentElement===paper && node.nodeValue && node.nodeValue.trim()){ deskNode=node; break; } }
+  if (deskNode) {
+    var deskRange=d.createRange(); deskRange.setStart(deskNode,0); deskRange.setEnd(deskNode,Math.min(2,deskNode.nodeValue.length));
+    var selection=w.getSelection(); selection.removeAllRanges(); selection.addRange(deskRange);
+    d.dispatchEvent(new w.MouseEvent('mouseup',{bubbles:true,cancelable:true})); await sleep(30);
+    ok('桌面 mouseup 划词路径仍正常', !d.getElementById('selPop').hidden);
+    selection.removeAllRanges();
+  }
+  var textarea=d.getElementById('newText');
+  var inputMenu=new w.MouseEvent('contextmenu',{bubbles:true,cancelable:true}); textarea.dispatchEvent(inputMenu);
+  ok('输入框仍允许系统复制菜单', !inputMenu.defaultPrevented);
+  ok('完整交互过程无脚本异常', runtimeErrors.length===0, runtimeErrors.join(' | '));
+
+  document.getElementById('log').textContent = out.join('\n');
+  var failures = out.filter(function (line) { return line.indexOf('FAIL') === 0; }).length;
+  document.title = 'E2E_DONE_' + failures + '_' + out.length;
+})();
+</script>
